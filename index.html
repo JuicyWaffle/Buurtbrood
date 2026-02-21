@@ -873,15 +873,34 @@ function NavBtn({ icon, label, active, onClick }) {
 }
 
 // ─── Shared order helpers ─────────────────────────────────────────────────────
-const getCustomer = o => o.customer_name || o.contact?.name || o.name || 'Onbekend';
-const getTotal    = o => o.total_price   || o.total           || 0;
+const getCustomer = o => o.customer?.name || o.customerName || o.customer_name || o.name || 'Onbekend';
+const getTotal    = o => {
+  // Take App returns totalAmount in cents
+  const raw = o.totalAmount ?? o.total_price ?? o.total ?? 0;
+  // Manual B2B orders store euros directly (small numbers), Take App sends cents (large numbers)
+  return o.source === 'manual' ? raw : raw / 100;
+};
 const getType     = o => o.customer_type === 'b2b' || o.is_b2b ? 'b2b' : 'b2c';
 const getItems    = o => (o.items || o.order_items || []).map(i => `${i.quantity||i.qty||1}× ${i.name||i.product_name||'?'}`).join(', ');
+// Normalize Take App status to our internal status
+const normalizeStatus = s => {
+  if (!s) return 'new';
+  const map = {
+    'ORDER_STATUS_PENDING':   'new',
+    'ORDER_STATUS_CONFIRMED': 'confirmed',
+    'ORDER_STATUS_FULFILLED': 'delivered',
+    'ORDER_STATUS_CANCELLED': 'cancelled',
+    'new': 'new', 'confirmed': 'confirmed', 'ready': 'ready',
+    'delivered': 'delivered', 'pending': 'new', 'cancelled': 'cancelled',
+  };
+  return map[s] || 'new';
+};
 
 function StatusBadge({ s }) {
-  const m = { new:'badge-new', confirmed:'badge-production', ready:'badge-ready', delivered:'badge-delivered', pending:'badge-new' };
-  const l = { new:'Nieuw', confirmed:'Bevestigd', ready:'Klaar', delivered:'Geleverd', pending:'Wachtend' };
-  return <span className={`badge ${m[s]||'badge-new'}`}>{l[s]||s}</span>;
+  const norm = normalizeStatus(s);
+  const m = { new:'badge-new', confirmed:'badge-production', ready:'badge-ready', delivered:'badge-delivered', cancelled:'badge-delivered' };
+  const l = { new:'Nieuw', confirmed:'Bevestigd', ready:'Klaar', delivered:'Geleverd', cancelled:'Geannuleerd' };
+  return <span className={`badge ${m[norm]||'badge-new'}`}>{l[norm]||s}</span>;
 }
 
 // Empty B2B order form state
@@ -984,12 +1003,12 @@ function BestellingenPage({ orders, setOrders, products: PRODUCTS }) {
   const filtered = orders.filter(o => {
     const name = getCustomer(o).toLowerCase();
     const matchQ = !search || name.includes(search.toLowerCase());
-    const matchS = filterStatus === 'all' || o.status === filterStatus;
+    const matchS = filterStatus === 'all' || normalizeStatus(o.status) === filterStatus;
     const matchT = filterType   === 'all' || getType(o) === filterType;
     return matchQ && matchS && matchT;
   });
 
-  const newCount   = orders.filter(o => o.status === 'new' || o.status === 'pending').length;
+  const newCount = orders.filter(o => normalizeStatus(o.status) === 'new').length;
   const b2bRevenue = orders.filter(o => getType(o)==='b2b').reduce((s,o) => s+getTotal(o), 0);
   const b2cRevenue = orders.filter(o => getType(o)==='b2c').reduce((s,o) => s+getTotal(o), 0);
 
@@ -1025,6 +1044,7 @@ function BestellingenPage({ orders, setOrders, products: PRODUCTS }) {
         <option value="confirmed">Bevestigd</option>
         <option value="ready">Klaar</option>
         <option value="delivered">Geleverd</option>
+        <option value="cancelled">Geannuleerd</option>
       </select>
       <select className="select-input" value={filterType} onChange={e=>setFilterType(e.target.value)}>
         <option value="all">B2B + B2C</option>
@@ -1049,12 +1069,12 @@ function BestellingenPage({ orders, setOrders, products: PRODUCTS }) {
       {filtered.length===0 && <div className="empty-msg"><div className="icon">📭</div>Geen bestellingen gevonden</div>}
       {filtered.map(o => <div key={o.id} className={`order-card ${selected?.id===o.id?'selected':''}`} onClick={()=>setSelected(o)}>
         <div className="order-num" style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-          <span style={{ fontFamily:'DM Mono', fontSize:'11px', color:'var(--text-muted)' }}>#{String(o.id).slice(-5)}</span>
+          <span style={{ fontFamily:'DM Mono', fontSize:'11px', color:'var(--text-muted)' }}>#{o.number || String(o.id).slice(-5)}</span>
           {o.source==='manual' && <span style={{ fontSize:'9px', background:'#F3E8FF', color:'#6B21A8', padding:'1px 5px', borderRadius:'4px', fontFamily:'DM Mono' }}>manueel</span>}
         </div>
         <div className="order-customer">
           <strong>{getCustomer(o)}</strong>
-          <span>{o.delivery_date||o.date||'—'}</span>
+          <span>{o.deliveryDate||o.delivery_date||o.date||(o.createdAt ? new Date(o.createdAt).toLocaleDateString('nl-BE') : '—')}</span>
         </div>
         <div className="order-items" style={{ fontSize:'12px', color:'var(--text-muted)' }}>{getItems(o)||'—'}</div>
         <span className={`badge badge-${getType(o)}`}>{getType(o).toUpperCase()}</span>
@@ -1076,18 +1096,22 @@ function BestellingenPage({ orders, setOrders, products: PRODUCTS }) {
             </div>
           </div>
           <button onClick={()=>setSelected(null)} style={{ border:'none', background:'none', fontSize:'20px', cursor:'pointer', color:'var(--text-muted)' }}>✕</button>
+          {selected.paymentStatus && <span className="badge" style={{ background: selected.paymentStatus==='PAYMENT_STATUS_PAID'?'#D1FAE5':'#FEF3C7', color: selected.paymentStatus==='PAYMENT_STATUS_PAID'?'#065F46':'#92400E', border:'none', fontSize:'10px' }}>
+            {selected.paymentStatus==='PAYMENT_STATUS_PAID'?'✓ Betaald':selected.paymentStatus==='PAYMENT_STATUS_PENDING'?'⏳ Onbetaald':'💳 '+selected.paymentStatus.replace('PAYMENT_STATUS_','')}
+          </span>}
         </div>
 
-        {selected.phone && <div style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'6px' }}>📞 {selected.phone}</div>}
-        {selected.email && <div style={{ fontSize:'12px', color:'var(--text-muted)' }}>✉️ {selected.email}</div>}
-        <div style={{ fontSize:'12px', color:'var(--text-muted)' }}>📅 Levering: {selected.delivery_date||'—'}</div>
+        {(selected.customer?.phone||selected.customerPhone||selected.phone) && <div style={{ fontSize:'12px', color:'var(--text-muted)', marginTop:'6px' }}>📞 {selected.customer?.phone||selected.customerPhone||selected.phone}</div>}
+        {(selected.customer?.email||selected.customerEmail||selected.email) && <div style={{ fontSize:'12px', color:'var(--text-muted)' }}>✉️ {selected.customer?.email||selected.customerEmail||selected.email}</div>}
+        <div style={{ fontSize:'12px', color:'var(--text-muted)' }}>📅 {selected.deliveryDate||selected.delivery_date ? 'Levering: '+(selected.deliveryDate||selected.delivery_date) : 'Besteld op: '+new Date(selected.createdAt||Date.now()).toLocaleDateString('nl-BE')}</div>
 
         <div className="divider" />
 
         {(selected.items||selected.order_items||[]).map((item,i) => {
           const pid = item.pid || matchProduct(item.name||item.product_name);
           const prod = pid ? PRODUCTS[pid] : null;
-          const price = item.price||item.unit_price||0;
+          const rawPrice = item.price||item.unit_price||0;
+          const price = rawPrice > 100 && Number.isInteger(rawPrice) ? rawPrice / 100 : rawPrice;
           const qty = item.quantity||item.qty||1;
           return <div key={i} className="order-detail-item">
             <span>{qty}× {item.name||item.product_name||'?'}</span>
@@ -1103,16 +1127,17 @@ function BestellingenPage({ orders, setOrders, products: PRODUCTS }) {
           <span>Totaal</span><span style={{ color:'var(--amber)' }}>{fmt(getTotal(selected))}</span>
         </div>
 
-        {selected.note && <div style={{ marginTop:'12px', background:'var(--flour)', borderRadius:'8px', padding:'10px 14px', fontSize:'13px', color:'var(--text-muted)' }}>📝 {selected.note}</div>}
+        {(selected.note || selected.remark) && <div style={{ marginTop:'12px', background:'var(--flour)', borderRadius:'8px', padding:'10px 14px', fontSize:'13px', color:'var(--text-muted)' }}>📝 {selected.note || selected.remark}</div>}
 
         <div className="modal-footer">
           <div style={{ flex:1 }}>
             <label style={{ fontSize:'11px', fontFamily:'DM Mono', color:'var(--text-muted)', display:'block', marginBottom:'4px' }}>STATUS</label>
-            <select className="status-select" value={selected.status||'new'} onChange={e=>updateStatus(selected.id, e.target.value)}>
+            <select className="status-select" value={normalizeStatus(selected.status)} onChange={e=>updateStatus(selected.id, e.target.value)}>
               <option value="new">Nieuw</option>
               <option value="confirmed">Bevestigd</option>
               <option value="ready">Klaar</option>
               <option value="delivered">Geleverd</option>
+              <option value="cancelled">Geannuleerd</option>
             </select>
           </div>
           {selected.source==='manual' && <button className="btn btn-danger" onClick={()=>deleteManualOrder(selected.id)}>Verwijderen</button>}
