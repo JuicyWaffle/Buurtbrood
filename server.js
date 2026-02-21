@@ -145,6 +145,30 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  // ── Serve /bundle.js — concateneert alle src/ bestanden in volgorde ─────────
+  if (pathname === '/bundle.js' && method === 'GET') {
+    const SRC_ORDER = [
+      'src/data.js', 'src/helpers.js', 'src/shared.js',
+      'src/bestellingen.js', 'src/productie.js', 'src/timers.js',
+      'src/inventory.js', 'src/labels.js', 'src/workflows.js',
+      'src/planning.js', 'src/ingredienten.js', 'src/kalender.js',
+      'src/settings.js', 'src/app.js',
+    ];
+    try {
+      const bundle = SRC_ORDER.map(f => {
+        const fp = path.join(__dirname, f);
+        return `
+// ── ${f} ──
+` + fs.readFileSync(fp, 'utf8');
+      }).join('
+');
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
+      return res.end(bundle);
+    } catch (e) {
+      res.writeHead(500); return res.end('Bundle fout: ' + e.message);
+    }
+  }
+
   // ── Take App proxy: /proxy/<endpoint> ──────────────────────────────────────
   if (pathname.startsWith('/proxy/')) {
     const endpoint = pathname.slice(7); // e.g. 'orders', 'inventory', 'me', 'orders/123'
