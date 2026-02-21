@@ -152,20 +152,37 @@ function BestellingenPage({ orders, setOrders, products: PRODUCTS }) {
     {/* Orders list */}
     <div className="orders-grid">
       {filtered.length===0 && <div className="empty-msg"><div className="icon">📭</div>Geen bestellingen gevonden</div>}
-      {filtered.map(o => <div key={o.id} className={`order-card ${selected?.id===o.id?'selected':''}`} onClick={()=>setSelected(o)}>
-        <div className="order-num" style={{ display:'flex', flexDirection:'column', gap:'3px' }}>
-          <span style={{ fontFamily:'DM Mono', fontSize:'11px', color:'var(--text-muted)' }}>#{o.number || String(o.id).slice(-5)}</span>
-          {o.source==='manual' && <span style={{ fontSize:'9px', background:'#F3E8FF', color:'#6B21A8', padding:'1px 5px', borderRadius:'4px', fontFamily:'DM Mono' }}>manueel</span>}
-        </div>
-        <div className="order-customer">
-          <strong>{getCustomer(o)}</strong>
-          <span>{o.deliveryDate||o.delivery_date||o.date||(o.createdAt ? new Date(o.createdAt).toLocaleDateString('nl-BE') : '—')}</span>
-        </div>
-        <div className="order-items" style={{ fontSize:'12px', color:'var(--text-muted)' }}>{getItems(o)||'—'}</div>
-        <span className={`badge badge-${getType(o)}`}>{getType(o).toUpperCase()}</span>
-        <StatusBadge s={o.status||'new'} />
-        <div className="order-total">{fmt(getTotal(o))}</div>
-      </div>)}
+      {filtered.map(o => {
+        const leverdatum = o.deliveryDate || o.delivery_date;
+        const besteldatum = o.createdAt ? new Date(o.createdAt).toLocaleDateString('nl-BE') : null;
+        return <div key={o.id} className={`order-card ${selected?.id===o.id?'selected':''}`}
+          onClick={()=>setSelected(o)}
+          style={{ flexDirection:'column', gap:'6px', padding:'14px 20px' }}>
+
+          {/* Lijn 1: nummer · naam · leverdatum · besteldatum */}
+          <div style={{ display:'flex', alignItems:'center', gap:'12px' }}>
+            <span style={{ fontFamily:'DM Mono', fontSize:'11px', color:'var(--text-muted)', minWidth:'40px' }}>
+              #{o.number || String(o.id).slice(-5)}
+            </span>
+            <strong style={{ fontSize:'14px', flex:1 }}>{getCustomer(o)}</strong>
+            {leverdatum && <span style={{ fontSize:'11px', fontFamily:'DM Mono', color:'var(--amber)', background:'#FFF8EC', padding:'2px 8px', borderRadius:'6px' }}>
+              📦 {leverdatum}
+            </span>}
+            {besteldatum && <span style={{ fontSize:'11px', fontFamily:'DM Mono', color:'var(--text-muted)' }}>
+              🕐 {besteldatum}
+            </span>}
+            <div className="order-total" style={{ fontSize:'16px', minWidth:'60px', textAlign:'right' }}>{fmt(getTotal(o))}</div>
+          </div>
+
+          {/* Lijn 2: inhoud · badges */}
+          <div style={{ display:'flex', alignItems:'center', gap:'8px', paddingLeft:'52px' }}>
+            <span style={{ fontSize:'12px', color:'var(--text-muted)', flex:1 }}>{getItems(o)||'—'}</span>
+            {o.source==='manual' && <span style={{ fontSize:'9px', background:'#F3E8FF', color:'#6B21A8', padding:'1px 6px', borderRadius:'4px', fontFamily:'DM Mono' }}>manueel</span>}
+            <span className={`badge badge-${getType(o)}`} style={{ fontSize:'10px' }}>{getType(o).toUpperCase()}</span>
+            <StatusBadge s={o.status||'new'} />
+          </div>
+        </div>;
+      })}
     </div>
 
     {/* Order detail modal */}
@@ -294,4 +311,3 @@ function BestellingenPage({ orders, setOrders, products: PRODUCTS }) {
     </div>}
   </div>;
 }
-
