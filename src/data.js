@@ -1,3 +1,27 @@
+const { useState, useEffect, useRef, useCallback } = React;
+
+let API_KEY = '';
+
+// ─── Local persistence via Node server ────────────────────────────────────────
+const LOCAL = {
+  async load(key) {
+    try {
+      const r = await fetch('/api/' + key);
+      if (!r.ok) throw new Error();
+      return r.json();
+    } catch { return null; }
+  },
+  async save(key, data) {
+    try {
+      await fetch('/api/' + key, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch (e) { console.error('Opslaan mislukt:', key, e); }
+  },
+};
+
 // ─── Default product catalog (overridden by products.json) ──────────────────
 const DEFAULT_PRODUCTS = {
   // GROOT B2C
@@ -108,4 +132,3 @@ const MOCK_ORDERS = [
   { id: 'ORD-0004', customer_name: 'Restaurant Het Anker', delivery_date: new Date().toISOString().split('T')[0], status: 'new', customer_type: 'b2b', items: [{ name: 'Pistolet', quantity: 30, price: 0.90 }], total: 27.00 },
   { id: 'ORD-0005', customer_name: 'Els Vermeersch', delivery_date: new Date(Date.now() + 86400000).toISOString().split('T')[0], status: 'new', items: [{ name: 'Spelt Energy Groot', quantity: 1, price: 5.90 }], total: 5.90 },
 ];
-
