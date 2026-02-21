@@ -28,7 +28,6 @@ function matchProduct(name) {
   return null;
 }
 
-
 // ─── API (via server proxy — geen CORS problemen) ────────────────────────────
 async function apiGet(endpoint) {
   const r = await fetch(`/proxy${endpoint}`);
@@ -48,4 +47,3 @@ async function apiPut(endpoint, body) {
   }
   return r.json();
 }
-
