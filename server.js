@@ -157,11 +157,8 @@ const server = http.createServer(async (req, res) => {
     try {
       const bundle = SRC_ORDER.map(f => {
         const fp = path.join(__dirname, f);
-        return `
-// ── ${f} ──
-` + fs.readFileSync(fp, 'utf8');
-      }).join('
-');
+        return `\n// ── ${f} ──\n` + fs.readFileSync(fp, 'utf8');
+      }).join('\n');
       res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
       return res.end(bundle);
     } catch (e) {
